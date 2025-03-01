@@ -25,7 +25,7 @@ class Process():
         self.waiting_time = 0
 
 class Simulation():
-    #initializing simulation upon construction
+    #initializing simulation upon construction of instance
     def __init__(self, lamb, CPUServiceTime, DiskServiceTime):
         self.clock = 0
         self.serverIdle = True
@@ -40,6 +40,27 @@ class Simulation():
         self.CPUServiceTime = CPUServiceTime
         self.DiskServiceTime = DiskServiceTime
 
+        #Adding single arrival event to queue
+        self.ScheduleEvent("cpu_arr", self.clock + exponential_dist(1/self.lamb))
+    
+    def ScheduleEvent(self, type: str, event_time: float):
+        event = Event(type, event_time)
+        self.eventQ.put(event)
+
+
+    def Run(self):
+        while self.completedProcesses != 10000:
+            e = self.eventQ.get()
+            old_clock = self.clock
+            clock = e.time #updating clock to time that event occurs
+            if e.type == "cpu_arr":
+                return #FIXME
+            elif e.type == "cpu_dep":
+                return #FIXME
+            elif e.type == "disk_arr":
+                return #FIXME
+            elif e.type == "disk_dep":
+                return #FIXME
     
 
         
