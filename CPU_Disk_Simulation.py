@@ -3,26 +3,28 @@ from queue import PriorityQueue, Queue
 import random
 import math
 
-#uniform_dist returns float between 0 and 1. larger max_value = finer grain floats
 def uniform_dist(max_value: int):
+    '''uniform_dist returns float between 0 and 1. larger max_value = finer grain floats'''
     rand_int = random.randint(0,max_value)
     return (rand_int / max_value + 0.0000000001)   
 
-#exponential dist takes in service time and returns an exponentially distributed float
 def exponential_dist(t: float):
+    '''exponential dist takes in service time and returns an exponentially distributed float'''
     uni_float = uniform_dist(10000000)
     return -t*math.log(uni_float)
 
-#Event class stores information about event type and time
-#event_time used to order in priority queue. (order of "execution")
 class Event():
+    '''Event class stores information about event type and time
+       event_time used to order in priority queue (order of "execution")'''
+
     def __init__(self, type: str, event_time: float):
         self.type = type
         self.event_time = event_time
 
-#Process class stores information about processes.
-#Instances added to readyQ for CPU and diskQ for disk
 class Process():
+    '''Process class stores information about processes.
+       Instances added to readyQ for CPU and diskQ for disk'''
+
     processID = 0 #ProcessID is unneeded/used, but mentioned in assignments.
 
     def __init__(self):
@@ -31,11 +33,12 @@ class Process():
         self.waiting_time = 0
         self.service_time = 0
 
-#Simulation class handles the running of the workload simulation.
 class Simulation():
-    #initializing simulation upon construction of instance
-    #takes in service rate, cpu service time, and disk service time
-    def __init__(self, arrival_rate, CPUServiceTime, DiskServiceTime):
+    '''Simulation class handles the running of the workload simulation.'''
+
+    def __init__(self, arrival_rate: float, CPUServiceTime: float, DiskServiceTime: float):
+        '''initializing simulation upon construction of instance
+        takes in service rate, cpu service time, and disk service time'''
         self.arrival_rate: float = arrival_rate #technically will only be an int, but either is fine.
         self.CPUServiceTime: float = CPUServiceTime
         self.DiskServiceTime: float = DiskServiceTime
@@ -54,10 +57,14 @@ class Simulation():
         self.ScheduleEvent("cpu_arr", exponential_dist(float(1/self.arrival_rate)))
     
     def ScheduleEvent(self, type: str, event_time: float):
-        event = Event(type, event_time)
-        self.eventQ.put((event_time,event)) #FIXME why add an event if you're just going to make it a tuple with time anyways?
+        '''ScheduleEvent takes in event type and the time event occurs and adds to event Queue'''
 
+        event = Event(type, event_time)
+        self.eventQ.put((event_time,event))
+    
     def Run(self):
+        '''Run method handles runtime function calls'''
+        
         while self.completedProcesses != 10000:
             e = self.eventQ.get()[1]
             old_clock = self.clock
@@ -71,9 +78,11 @@ class Simulation():
             elif e.type == "disk_dep":
                 return #FIXME
     
-
+    
     @classmethod
     def from_command_line(cls):
+        ''' from_command_line allows instantion of Simulation objects from the command line.
+        '''
         if len(sys.argv) <= 3:
             print("To run the simulation, call the script with the following arguments:\n" \
                     "Argument 1: Arrival rate (λ) in processes per second\n" \
