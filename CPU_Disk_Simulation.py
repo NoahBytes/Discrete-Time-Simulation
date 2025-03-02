@@ -42,15 +42,19 @@ class Simulation():
         self.arrival_rate: float = arrival_rate #technically will only be an int, but either is fine.
         self.CPUServiceTime: float = CPUServiceTime
         self.DiskServiceTime: float = DiskServiceTime
-        self.clock: float = 0
+        self.clock: float = 0.0
         self.is_server_idle: bool = True
-        self.totalTurnaround: float = 0
+        self.totalTurnaround: float = 0.0 #Used for averaging. Each process turnaround = w + s
         self.completedProcesses: int = 0
-        self.weightedProcessInReadyQ: float = 0
-        self.busyTime: float = 0
-        self.eventQ = PriorityQueue()
-        self.readyQ = Queue()
-        self.diskQ = Queue()
+        self.weightedProcessInReadyQ: float = 0.0
+        self.weightedProcessInDiskQ: float = 0.0 #used for avg # procs in queue
+        self.CPUbusyTime: float = 0.0
+        self.DiskBusyTime: float = 0.0 #used for utilization calcs
+        self.eventQ: PriorityQueue[Process] = PriorityQueue()
+        self.readyQ: Queue[Process] = Queue()
+        self.diskQ: Queue[Process] = Queue()
+        self.CPURunningProcess: Process = None
+        self.DiskRunningProcess: Process = None #tracks the currently active process
 
 
         #Adding single arrival event to queue
@@ -64,20 +68,36 @@ class Simulation():
     
     def Run(self):
         '''Run method handles runtime function calls'''
-        
+
         while self.completedProcesses != 10000:
             e = self.eventQ.get()[1]
-            old_clock = self.clock
-            clock = e.event_time #updating clock to time that event occurs
+            beginClock = self.clock
+            self.clock = e.event_time #updating clock to time that event occurs
             if e.type == "cpu_arr":
-                return #FIXME
+                self.CPU_Arrival_Handler(beginClock)
             elif e.type == "cpu_dep":
                 return #FIXME
             elif e.type == "disk_arr":
                 return #FIXME
             elif e.type == "disk_dep":
                 return #FIXME
-    
+
+    def CPU_Arrival_Handler(self, beginClock: float):
+        '''CPU_Arrival_Handler takes in arrival event and clock time before event occurred.
+           Updates state of simulation based on server occupancy. Clock updated before call, so not incremented'''
+           
+        self.weightedProcessInReadyQ += self.readyQ.qsize() * (self.clock - beginClock)
+        self.ScheduleEvent("cpu_arr", self.clock + exponential_dist(1/self.arrival_rate))
+        
+        process = Process()
+        if self.is_server_idle:
+            self.is_server_idle = False
+            process.service_time = exponential_dist(self.CPUServiceTime)
+            self.CPUbusyTime += process.service_time
+            self.CPURunningProcess = process
+            self.ScheduleEvent("cpu_dep", self.clock + process.service_time)
+        else:
+            self.readyQ.put(process)
     
     @classmethod
     def from_command_line(cls):
