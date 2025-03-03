@@ -31,7 +31,7 @@ class Process():
         self.processID = Process.processID
         Process.processID += 1
         self.waiting_time = 0
-        self.service_time = 0
+        self.service_time = 0 #includes both CPU and Disk times
 
 class Simulation():
     '''Simulation class handles the running of the workload simulation.'''
@@ -43,7 +43,8 @@ class Simulation():
         self.CPUServiceTime: float = CPUServiceTime
         self.DiskServiceTime: float = DiskServiceTime
         self.clock: float = 0.0
-        self.is_server_idle: bool = True
+        self.is_cpu_idle: bool = True
+        self.is_disk_idle: bool = True
         self.totalTurnaround: float = 0.0 #Used for averaging. Each process turnaround = w + s
         self.completedProcesses: int = 0
         self.weightedProcessInReadyQ: float = 0.0
@@ -65,33 +66,19 @@ class Simulation():
 
         event = Event(type, event_time)
         self.eventQ.put((event_time,event))
-    
-    def Run(self):
-        '''Run method handles runtime function calls'''
-
-        while self.completedProcesses != 10000:
-            e = self.eventQ.get()[1]
-            beginClock = self.clock
-            self.clock = e.event_time #updating clock to time that event occurs
-            if e.type == "cpu_arr":
-                self.CPUArrivalHandler(beginClock)
-            elif e.type == "cpu_dep":
-                self.CPUDepartureHandler()
-            elif e.type == "disk_arr":
-                return #FIXME
-            elif e.type == "disk_dep":
-                return #FIXME
 
     def CPUArrivalHandler(self, beginClock: float):
         '''CPU_Arrival_Handler takes in arrival event and clock time before event occurred.
            Updates state of simulation based on server occupancy. Clock updated before call, so not incremented'''
            
         self.weightedProcessInReadyQ += self.readyQ.qsize() * (self.clock - beginClock)
+        self.weightedProcessInDiskQ += self.diskQ.qsize() * (self.clock - beginClock)
+
         self.ScheduleEvent("cpu_arr", self.clock + exponential_dist(1/self.arrival_rate))
         
         process = Process()
-        if self.is_server_idle:
-            self.is_server_idle = False
+        if self.is_cpu_idle:
+            self.is_cpu_idle = False
             process.service_time = exponential_dist(self.CPUServiceTime)
             self.CPUbusyTime += process.service_time
             self.CPURunningProcess = process
@@ -99,7 +86,13 @@ class Simulation():
         else:
             self.readyQ.put(process)
            
-    def CPUDepartureHandler(self):
+    def CPUDepartureHandler(self, beginClock: float):
+        '''CPUDepartureHandler called when running process' service time is up.
+            Updates state based on whether process exits or goes to disk, and whether server is busy.'''
+        
+        self.weightedProcessInReadyQ += self.readyQ.qsize() * (self.clock - beginClock)
+        self.weightedProcessInDiskQ += self.diskQ.qsize() * (self.clock - beginClock)
+
         #if random float <= 0.6, currently running process exits system.
         if uniform_dist(100000) <= 0.6:
             self.totalTurnaround += self.CPURunningProcess.waiting_time + self.CPURunningProcess.service_time
@@ -111,7 +104,7 @@ class Simulation():
             self.ScheduleEvent('disk_arr', self.clock)
         
         if self.readyQ.qsize() == 0:
-            self.is_server_idle = True
+            self.is_cpu_idle = True
         else:
             nextProcess = self.readyQ.get()
             self.CPURunningProcess = nextProcess
@@ -120,6 +113,19 @@ class Simulation():
             self.CPURunningProcess.service_time += service_burst
             self.CPUbusyTime += service_burst
             self.ScheduleEvent('cpu_dep', self.clock + service_burst)
+
+    def DiskArrivalHandler(self, beginClock: float):
+        '''DiskArrivalHandler moves processes to disk if idle, otherwise does nothing.
+            Does not add to diskQ since the CPUDepartureHandler does that.
+            Does not schedule new arrivals since those come in from CPU.'''
+
+        if self.is_disk_idle == True:
+            process = self.diskQ.get()
+            self.DiskRunningProcess = process
+            diskBurst = exponential_dist(self.DiskServiceTime)
+            self.DiskRunningProcess.service_time += diskBurst
+            self.DiskBusyTime += diskBurst
+            self.ScheduleEvent("disk_dep", diskBurst)
 
     
     @classmethod
@@ -136,6 +142,22 @@ class Simulation():
         
         return cls(float(sys.argv[1]), float(sys.argv[2]), float(sys.argv[3]))
     
+    def Run(self):
+        '''Run method handles runtime function calls'''
+
+        while self.completedProcesses != 10000:
+            e = self.eventQ.get()[1]
+            beginClock = self.clock
+            self.clock = e.event_time #updating clock to time that event occurs
+            if e.type == "cpu_arr":
+                self.CPUArrivalHandler(beginClock)
+            elif e.type == "cpu_dep":
+                self.CPUDepartureHandler(beginClock)
+            elif e.type == "disk_arr":
+                self.DiskArrivalHandler(beginClock)
+            elif e.type == "disk_dep":
+                self.DiskDepartureHandler(beginClock)
+
 if __name__ == "__main__":
     sim = Simulation.from_command_line()
     sim.Run()    
