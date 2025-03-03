@@ -49,7 +49,7 @@ class Simulation():
         self.completedProcesses: int = 0
         self.weightedProcessInReadyQ: float = 0.0
         self.weightedProcessInDiskQ: float = 0.0 #used for avg # procs in queue
-        self.CPUbusyTime: float = 0.0
+        self.CPUBusyTime: float = 0.0
         self.DiskBusyTime: float = 0.0 #used for utilization calcs
         self.eventQ: PriorityQueue[Process] = PriorityQueue()
         self.readyQ: Queue[Process] = Queue()
@@ -80,7 +80,7 @@ class Simulation():
         if self.is_cpu_idle:
             self.is_cpu_idle = False
             process.service_time = exponential_dist(self.CPUServiceTime)
-            self.CPUbusyTime += process.service_time
+            self.CPUBusyTime += process.service_time
             self.CPURunningProcess = process
             self.ScheduleEvent("cpu_dep", self.clock + process.service_time)
         else:
@@ -99,7 +99,7 @@ class Simulation():
             self.completedProcesses += 1
         else:
             #if going to disk, put in new arrival event IMMEDIATELY
-            #FIXME: this may(?) cause issue in eventQ with priority. keep an eye on/test.
+            #FIXME: this may( but should not?) cause issue in eventQ with priority. keep an eye on/test.
             self.diskQ.put(self.CPURunningProcess)
             self.ScheduleEvent('disk_arr', self.clock)
         
@@ -111,7 +111,7 @@ class Simulation():
             #FIXME need to add waiting time tracking. Add arrival time to process creation.
             service_burst = exponential_dist(self.CPUServiceTime)
             self.CPURunningProcess.service_time += service_burst
-            self.CPUbusyTime += service_burst
+            self.CPUBusyTime += service_burst
             self.ScheduleEvent('cpu_dep', self.clock + service_burst)
 
     def DiskArrivalHandler(self):
@@ -121,6 +121,7 @@ class Simulation():
             Does not schedule new arrivals since those come in from CPU.'''
 
         if self.is_disk_idle == True:
+            self.is_disk_idle = False
             process = self.diskQ.get()
             self.DiskRunningProcess = process
             diskBurst = exponential_dist(self.DiskServiceTime)
@@ -160,10 +161,18 @@ class Simulation():
         
         return cls(float(sys.argv[1]), float(sys.argv[2]), float(sys.argv[3]))
     
+    def print_metrics(self):
+        print(f'Turnaround time = {self.totalTurnaround/self.clock}')
+        print(f'CPU Util = {self.CPUBusyTime/self.clock}')
+        print(f'Disk Util = {self.DiskBusyTime/self.clock}')
+        print(f'Average Processes in Ready Queue = {self.weightedProcessInReadyQ/self.clock}')
+        print(f'Average Processes in Disk Queue = {self.weightedProcessInDiskQ/self.clock}')
+        #FIXME not complete, just testing.
+
     def Run(self):
         '''Run method handles runtime function calls'''
 
-        while self.completedProcesses != 10000:
+        while self.completedProcesses != 1000:
             e = self.eventQ.get()[1]
             beginClock = self.clock
             self.clock = e.event_time #updating clock to time that event occurs
@@ -178,4 +187,5 @@ class Simulation():
 
 if __name__ == "__main__":
     sim = Simulation.from_command_line()
-    sim.Run()    
+    sim.Run()
+    sim.print_metrics()
