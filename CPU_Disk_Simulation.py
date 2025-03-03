@@ -74,15 +74,15 @@ class Simulation():
             beginClock = self.clock
             self.clock = e.event_time #updating clock to time that event occurs
             if e.type == "cpu_arr":
-                self.CPU_Arrival_Handler(beginClock)
+                self.CPUArrivalHandler(beginClock)
             elif e.type == "cpu_dep":
-                return #FIXME
+                self.CPUDepartureHandler()
             elif e.type == "disk_arr":
                 return #FIXME
             elif e.type == "disk_dep":
                 return #FIXME
 
-    def CPU_Arrival_Handler(self, beginClock: float):
+    def CPUArrivalHandler(self, beginClock: float):
         '''CPU_Arrival_Handler takes in arrival event and clock time before event occurred.
            Updates state of simulation based on server occupancy. Clock updated before call, so not incremented'''
            
@@ -98,6 +98,29 @@ class Simulation():
             self.ScheduleEvent("cpu_dep", self.clock + process.service_time)
         else:
             self.readyQ.put(process)
+           
+    def CPUDepartureHandler(self):
+        #if random float <= 0.6, currently running process exits system.
+        if uniform_dist(100000) <= 0.6:
+            self.totalTurnaround += self.CPURunningProcess.waiting_time + self.CPURunningProcess.service_time
+            self.completedProcesses += 1
+        else:
+            #if going to disk, put in new arrival event IMMEDIATELY
+            #FIXME: this may(?) cause issue in eventQ with priority. keep an eye on/test.
+            self.diskQ.put(self.CPURunningProcess)
+            self.ScheduleEvent('disk_arr', self.clock)
+        
+        if self.readyQ.qsize() == 0:
+            self.is_server_idle = True
+        else:
+            nextProcess = self.readyQ.get()
+            self.CPURunningProcess = nextProcess
+            #FIXME need to add waiting time tracking. Add arrival time to process creation.
+            service_burst = exponential_dist(self.CPUServiceTime)
+            self.CPURunningProcess.service_time += service_burst
+            self.CPUbusyTime += service_burst
+            self.ScheduleEvent('cpu_dep', self.clock + service_burst)
+
     
     @classmethod
     def from_command_line(cls):
