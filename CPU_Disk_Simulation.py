@@ -138,7 +138,7 @@ class Simulation():
 
         self.readyQ.put(self.DiskRunningProcess)
         if self.diskQ.qsize() == 0:
-            self.is_disk_idle == True
+            self.is_disk_idle = True
         else:
             nextProcess = self.diskQ.get()
             self.DiskRunningProcess = nextProcess
