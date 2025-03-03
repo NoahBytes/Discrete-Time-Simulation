@@ -114,8 +114,9 @@ class Simulation():
             self.CPUbusyTime += service_burst
             self.ScheduleEvent('cpu_dep', self.clock + service_burst)
 
-    def DiskArrivalHandler(self, beginClock: float):
+    def DiskArrivalHandler(self):
         '''DiskArrivalHandler moves processes to disk if idle, otherwise does nothing.
+            Occurs immediately after process exits CPU, since it will go straight to diskQ.
             Does not add to diskQ since the CPUDepartureHandler does that.
             Does not schedule new arrivals since those come in from CPU.'''
 
@@ -125,8 +126,25 @@ class Simulation():
             diskBurst = exponential_dist(self.DiskServiceTime)
             self.DiskRunningProcess.service_time += diskBurst
             self.DiskBusyTime += diskBurst
-            self.ScheduleEvent("disk_dep", diskBurst)
+            self.ScheduleEvent("disk_dep", self.clock + diskBurst)
 
+    def DiskDepartureHandler(self, beginClock: float):
+        '''DiskDepartureHandler hands process over to ReadyQ and moves new process to disk, if available.'''
+
+        #FIXME need to track waiting time.
+        self.weightedProcessInReadyQ += self.readyQ.qsize() * (self.clock - beginClock)
+        self.weightedProcessInDiskQ += self.diskQ.qsize() * (self.clock - beginClock)
+
+        self.readyQ.put(self.DiskRunningProcess)
+        if self.diskQ.qsize() == 0:
+            self.is_disk_idle == True
+        else:
+            nextProcess = self.diskQ.get()
+            self.DiskRunningProcess = nextProcess
+            diskBurst = exponential_dist(self.DiskServiceTime)
+            self.DiskRunningProcess.service_time += diskBurst
+            self.DiskBusyTime += diskBurst
+            self.ScheduleEvent("disk_dep", self.clock + diskBurst)
     
     @classmethod
     def from_command_line(cls):
@@ -154,7 +172,7 @@ class Simulation():
             elif e.type == "cpu_dep":
                 self.CPUDepartureHandler(beginClock)
             elif e.type == "disk_arr":
-                self.DiskArrivalHandler(beginClock)
+                self.DiskArrivalHandler()
             elif e.type == "disk_dep":
                 self.DiskDepartureHandler(beginClock)
 
