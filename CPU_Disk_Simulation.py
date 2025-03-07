@@ -27,12 +27,12 @@ class Process():
 
     processID = 0 #ProcessID is unneeded/used, but mentioned in assignments.
 
-    def __init__(self):
+    def __init__(self, current_queue_arrival: float):
         self.processID = Process.processID
         Process.processID += 1
         self.waiting_time = 0
         self.service_time = 0 #includes both CPU and Disk times
-        self.current_queue_arrival = 0
+        self.current_queue_arrival = current_queue_arrival
 
 class Simulation():
     '''Simulation class handles the running of the workload simulation.'''
@@ -58,7 +58,6 @@ class Simulation():
         self.CPURunningProcess: Process = None
         self.DiskRunningProcess: Process = None #tracks the currently active process
 
-
         #Adding single arrival event to queue
         self.ScheduleEvent("cpu_arr", exponential_dist(float(1/self.arrival_rate)))
     
@@ -75,7 +74,7 @@ class Simulation():
 
         self.ScheduleEvent("cpu_arr", self.clock + exponential_dist(1/self.arrival_rate))
         
-        process = Process()
+        process = Process(self.clock)
         if self.is_cpu_idle:
             self.is_cpu_idle = False
             process.service_time = exponential_dist(self.CPUServiceTime)
@@ -99,6 +98,7 @@ class Simulation():
         else:
             #if going to disk, put in new arrival event IMMEDIATELY
             self.diskQ.put(self.CPURunningProcess)
+            self.CPURunningProcess.current_queue_arrival = self.clock
             self.ScheduleEvent('disk_arr', self.clock)
         
         if self.readyQ.qsize() == 0:
@@ -106,7 +106,7 @@ class Simulation():
         else:
             nextProcess = self.readyQ.get()
             self.CPURunningProcess = nextProcess
-            #FIXME need to add waiting time tracking. Add arrival time to process creation.
+            self.CPURunningProcess.waiting_time += self.clock - self.CPURunningProcess.current_queue_arrival
             service_burst = exponential_dist(self.CPUServiceTime)
             self.CPURunningProcess.service_time += service_burst
             self.CPUBusyTime += service_burst
@@ -173,11 +173,11 @@ class Simulation():
     
     def print_metrics(self):
         print(f'Turnaround time = {self.totalTurnaround/self.clock}')
+        print(f'Average throughput = {self.completedProcesses/self.clock}')
         print(f'CPU Util = {self.CPUBusyTime/self.clock}')
         print(f'Disk Util = {self.DiskBusyTime/self.clock}')
         print(f'Average Processes in Ready Queue = {self.weightedProcessInReadyQ/self.clock}')
         print(f'Average Processes in Disk Queue = {self.weightedProcessInDiskQ/self.clock}')
-        #FIXME not complete, just testing.
 
     def Run(self):
         '''Run method handles runtime function calls'''
