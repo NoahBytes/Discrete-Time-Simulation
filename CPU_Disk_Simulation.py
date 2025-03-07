@@ -132,8 +132,6 @@ class Simulation():
     def DiskDepartureHandler(self, beginClock: float):
         '''DiskDepartureHandler hands process over to ReadyQ and moves new process to disk, if available.'''
 
-        #FIXME need to track waiting time.
-
         #If empty, schedule on the CPU
         if self.readyQ.qsize() == 0:
             self.CPURunningProcess = self.DiskRunningProcess
