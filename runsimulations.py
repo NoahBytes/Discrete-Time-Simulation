@@ -26,10 +26,12 @@ data = {
     "throughput": avg_throughput,
     "cpu_utilization": avg_cpu_util,
     "ready_queue_processes": avg_cpu_queue, #FIXME testing. Still need to add the other two disk queue and util
+    "disk_utilization": avg_disk_util,
+    "disk_queue": avg_disk_queue
 }
 
 # Set up figure and axes for the four subplots
-fig, axes = plt.subplots(2, 2, figsize=(12, 10))
+fig, axes = plt.subplots(2, 3, figsize=(12, 10))
 fig.suptitle("Performance Metrics vs. Arrival Rate (lambda)", fontsize=16)
 
 # Plot for average turnaround time
@@ -55,6 +57,17 @@ axes[1, 1].plot(data["arrival_rate"], data["ready_queue_processes"], marker='o',
 axes[1, 1].set_title("Average Processes in the Ready Queue")
 axes[1, 1].set_xlabel("Arrival Rate (lambda)")
 axes[1, 1].set_ylabel("Ready Queue Processes")
+
+axes[0, 2].plot(data["arrival_rate"], data["disk_utilization"], marker='o', color='b')
+axes[0, 2].set_title("Average Disk Utilization")
+axes[0, 2].set_xlabel("Arrival Rate (lambda)")
+axes[0, 2].set_ylabel("Disk Utilization")
+
+axes[1, 2].plot(data["arrival_rate"], data["disk_queue"], marker='o', color='b')
+axes[1, 2].set_title("Average Processes in the Disk Queue")
+axes[1, 2].set_xlabel("Arrival Rate (lambda)")
+axes[1, 2].set_ylabel("Disk Queue Processes")
+
 
 # Display the plots
 plt.tight_layout( rect=[0, 0, 1, 0.95],h_pad=4, w_pad=3)
