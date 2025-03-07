@@ -32,6 +32,7 @@ class Process():
         Process.processID += 1
         self.waiting_time = 0
         self.service_time = 0 #includes both CPU and Disk times
+        self.current_queue_arrival = 0
 
 class Simulation():
     '''Simulation class handles the running of the workload simulation.'''
@@ -69,10 +70,8 @@ class Simulation():
 
     def CPUArrivalHandler(self, beginClock: float):
         '''CPU_Arrival_Handler takes in arrival event and clock time before event occurred.
-           Updates state of simulation based on server occupancy. Clock updated before call, so not incremented'''
-           
-        self.weightedProcessInReadyQ += self.readyQ.qsize() * (self.clock - beginClock)
-        self.weightedProcessInDiskQ += self.diskQ.qsize() * (self.clock - beginClock)
+           Updates state of simulation based on server occupancy. Clock updated before call, so not incremented.
+           Only for new processes, since current implementation makes a new process.'''
 
         self.ScheduleEvent("cpu_arr", self.clock + exponential_dist(1/self.arrival_rate))
         
@@ -85,21 +84,20 @@ class Simulation():
             self.ScheduleEvent("cpu_dep", self.clock + process.service_time)
         else:
             self.readyQ.put(process)
+
+        self.weightedProcessInReadyQ += self.readyQ.qsize() * (self.clock - beginClock)
+        self.weightedProcessInDiskQ += self.diskQ.qsize() * (self.clock - beginClock)
            
     def CPUDepartureHandler(self, beginClock: float):
         '''CPUDepartureHandler called when running process' service time is up.
             Updates state based on whether process exits or goes to disk, and whether server is busy.'''
         
-        self.weightedProcessInReadyQ += self.readyQ.qsize() * (self.clock - beginClock)
-        self.weightedProcessInDiskQ += self.diskQ.qsize() * (self.clock - beginClock)
-
         #if random float <= 0.6, currently running process exits system.
         if uniform_dist(100000) <= 0.6:
             self.totalTurnaround += self.CPURunningProcess.waiting_time + self.CPURunningProcess.service_time
             self.completedProcesses += 1
         else:
             #if going to disk, put in new arrival event IMMEDIATELY
-            #FIXME: this may( but should not?) cause issue in eventQ with priority. keep an eye on/test.
             self.diskQ.put(self.CPURunningProcess)
             self.ScheduleEvent('disk_arr', self.clock)
         
@@ -114,11 +112,13 @@ class Simulation():
             self.CPUBusyTime += service_burst
             self.ScheduleEvent('cpu_dep', self.clock + service_burst)
 
+        self.weightedProcessInReadyQ += self.readyQ.qsize() * (self.clock - beginClock)
+        self.weightedProcessInDiskQ += self.diskQ.qsize() * (self.clock - beginClock)
+
     def DiskArrivalHandler(self):
         '''DiskArrivalHandler moves processes to disk if idle, otherwise does nothing.
             Occurs immediately after process exits CPU, since it will go straight to diskQ.
-            Does not add to diskQ since the CPUDepartureHandler does that.
-            Does not schedule new arrivals since those come in from CPU.'''
+            Does not add to diskQ since the CPUDepartureHandler does that.'''
 
         if self.is_disk_idle == True:
             self.is_disk_idle = False
@@ -133,10 +133,17 @@ class Simulation():
         '''DiskDepartureHandler hands process over to ReadyQ and moves new process to disk, if available.'''
 
         #FIXME need to track waiting time.
-        self.weightedProcessInReadyQ += self.readyQ.qsize() * (self.clock - beginClock)
-        self.weightedProcessInDiskQ += self.diskQ.qsize() * (self.clock - beginClock)
 
-        self.readyQ.put(self.DiskRunningProcess)
+        #If empty, schedule on the CPU
+        if self.readyQ.qsize() == 0:
+            self.CPURunningProcess = self.DiskRunningProcess
+            service_burst = exponential_dist(self.CPUServiceTime)
+            self.CPURunningProcess.service_time += service_burst
+            self.CPUBusyTime += service_burst
+            self.ScheduleEvent('cpu_dep', self.clock + service_burst)
+        else: #otherwise, add to readyQ and let it be scheduled via CPU departure.
+            self.readyQ.put(self.DiskRunningProcess)
+
         if self.diskQ.qsize() == 0:
             self.is_disk_idle = True
         else:
@@ -146,6 +153,9 @@ class Simulation():
             self.DiskRunningProcess.service_time += diskBurst
             self.DiskBusyTime += diskBurst
             self.ScheduleEvent("disk_dep", self.clock + diskBurst)
+        
+        self.weightedProcessInReadyQ += self.readyQ.qsize() * (self.clock - beginClock)
+        self.weightedProcessInDiskQ += self.diskQ.qsize() * (self.clock - beginClock)
     
     @classmethod
     def from_command_line(cls):
@@ -172,7 +182,7 @@ class Simulation():
     def Run(self):
         '''Run method handles runtime function calls'''
 
-        while self.completedProcesses != 1000:
+        while self.completedProcesses != 10000:
             e = self.eventQ.get()[1]
             beginClock = self.clock
             self.clock = e.event_time #updating clock to time that event occurs
